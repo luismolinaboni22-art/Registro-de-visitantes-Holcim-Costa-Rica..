@@ -1,74 +1,34 @@
-{% extends 'base.html' %}
-{% block content %}
-<div class="row">
-  <div class="col-md-8">
-    <h4>Visitantes dentro</h4>
-    {% if alertas %}
-      <div class="mb-3">
-        <div class="alert-holcim">
-          <strong>Alertas:</strong>
-          <ul class="mb-0">
-            {% for a in alertas %}
-              <li>{{ a.nombre }} — {{ a.horas }} horas ({{ a.site }})</li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
-    {% endif %}
-    <div class="card shadow">
-      <div class="card-body p-0">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr><th>ID</th><th>Nombre</th><th>Empresa</th><th>Entrada</th><th>Sitio</th><th>Acción</th></tr>
-          </thead>
-          <tbody>
-            {% for v in activos %}
-              <tr>
-                <td>{{ v.id }}</td>
-                <td>{{ v.nombre }}</td>
-                <td>{{ v.empresa }}</td>
-                <td>{{ v.hora_entrada.strftime('%Y-%m-%d %H:%M:%S') if v.hora_entrada else '' }}</td>
-                <td>{{ v.site.name if v.site else '' }}</td>
-                <td>
-                  <form method="post" action="{{ url_for('salida', vid=v.id) }}" style="display:inline;">
-                    <button class="btn btn-sm btn-danger" onclick="return confirm('Registrar salida?')">Registrar salida</button>
-                  </form>
-                </td>
-              </tr>
-            {% else %}
-              <tr><td colspan="6" class="text-center">No hay visitantes dentro.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <h5 class="mt-3">Últimos registros</h5>
-    <ul class="list-group">
-      {% for u in ultimos %}
-        <li class="list-group-item py-2">
-          {{ u.hora_entrada.strftime('%Y-%m-%d %H:%M') }} — <strong>{{ u.nombre }}</strong> ({{ u.empresa }}) — {{ u.site.name if u.site else '' }}
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
-
-  <div class="col-md-4">
-    <div class="status-box mb-3 text-center">
-      <h6>Personas dentro ahora</h6>
-      <div style="font-size:48px; color:var(--holcim-dark); font-weight:700;">{{ cantidad_activos }}</div>
-    </div>
-
-    <div class="card shadow">
-      <div class="card-body">
-        <h6>Sitios</h6>
-        <ul class="list-unstyled mb-0">
-          {% for s in sites %}
-            <li>{{ s.name }}</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Visitantes</title>
+</head>
+<body>
+    <h1>Listado de Visitantes</h1>
+    <p>Bienvenido {{ current_user.email }} | <a href="{{ url_for('logout') }}">Cerrar sesión</a></p>
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Cédula</th>
+            <th>Empresa</th>
+            <th>Motivo</th>
+            <th>Persona Visitada</th>
+            <th>Entrada</th>
+            <th>Salida</th>
+        </tr>
+        {% for v in visitantes %}
+        <tr>
+            <td>{{ v.id }}</td>
+            <td>{{ v.nombre }}</td>
+            <td>{{ v.cedula }}</td>
+            <td>{{ v.empresa }}</td>
+            <td>{{ v.motivo }}</td>
+            <td>{{ v.persona_visitada }}</td>
+            <td>{{ v.hora_entrada }}</td>
+            <td>{{ v.hora_salida or '' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
