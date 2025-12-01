@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<h4>{% if action=='create' %}Crear sitio{% else %}Editar sitio{% endif %}</h4>
+<form method="post">
+  <div class="mb-2"><input class="form-control" name="name" placeholder="Nombre del sitio" value="{{ site.name if site else '' }}" required></div>
+  <div class="mb-2"><input class="form-control" name="location" placeholder="Ubicación" value="{{ site.location if site else '' }}"></div>
+  <button class="btn btn-primary">Guardar</button>
+</form>
+{% endblock %}

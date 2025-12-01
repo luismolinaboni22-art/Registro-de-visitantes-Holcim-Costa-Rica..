@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<h4>{% if action=='create' %}Crear usuario{% else %}Editar usuario{% endif %}</h4>
+<form method="post">
+  <div class="mb-2"><input class="form-control" name="email" placeholder="Email" value="{{ user.email if user else '' }}" required></div>
+  <div class="mb-2"><input class="form-control" name="name" placeholder="Nombre" value="{{ user.name if user else '' }}" required></div>
+  <div class="mb-2"><input class="form-control" name="password" placeholder="Contraseña (solo para crear o cambiar)"></div>
+  <div class="mb-2">
+    <select name="role" class="form-control">
+      <option value="oficial" {% if user and user.role=='oficial' %}selected{% endif %}>Oficial</option>
+      <option value="admin" {% if user and user.role=='admin' %}selected{% endif %}>Admin</option>
+      <option value="superadmin" {% if user and user.role=='superadmin' %}selected{% endif %}>Superadmin</option>
+    </select>
+  </div>
+  <div class="mb-2">
+    <select name="site_id" class="form-control">
+      <option value="">-- Ninguno --</option>
+      {% for s in sites %}
+        <option value="{{ s.id }}" {% if user and user.site_id==s.id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-primary">Guardar</button>
+</form>
+{% endblock %}

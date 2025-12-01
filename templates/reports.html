@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<h4>Reportes</h4>
+<form class="row g-2 mb-3">
+  <div class="col-md-3"><input class="form-control" name="nombre" placeholder="Nombre" value="{{ nombre }}"></div>
+  <div class="col-md-3"><input class="form-control" name="empresa" placeholder="Empresa" value="{{ empresa }}"></div>
+  <div class="col-md-3"><input class="form-control" name="desde" placeholder="Desde (YYYY-MM-DDTHH:MM:SS)" value="{{ desde }}"></div>
+  <div class="col-md-3"><input class="form-control" name="hasta" placeholder="Hasta (YYYY-MM-DDTHH:MM:SS)" value="{{ hasta }}"></div>
+  {% if current_user.role in ['superadmin','admin'] %}
+    <div class="col-md-3">
+      <select class="form-control" name="site">
+        <option value="">Todos</option>
+        {% for s in sites %}<option value="{{ s.id }}" {% if site_filter==s.id|string %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  <div class="col-auto"><button class="btn btn-primary">Buscar</button></div>
+  <div class="col-auto">
+    <a class="btn btn-success" href="{{ url_for('export', site=site_filter, desde=desde, hasta=hasta) }}">Exportar Excel</a>
+  </div>
+</form>
+
+<table class="table table-sm">
+  <thead><tr><th>ID</th><th>Nombre</th><th>Empresa</th><th>Entrada</th><th>Salida</th><th>Sitio</th></tr></thead>
+  <tbody>
+    {% for v in visitantes %}
+      <tr>
+        <td>{{ v.id }}</td>
+        <td>{{ v.nombre }}</td>
+        <td>{{ v.empresa }}</td>
+        <td>{{ v.hora_entrada.strftime('%Y-%m-%d %H:%M:%S') if v.hora_entrada else '' }}</td>
+        <td>{{ v.hora_salida.strftime('%Y-%m-%d %H:%M:%S') if v.hora_salida else '' }}</td>
+        <td>{{ v.site.name if v.site else '' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center">No hay datos.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

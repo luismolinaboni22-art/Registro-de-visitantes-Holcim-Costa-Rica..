@@ -1,0 +1,20 @@
+:root{
+  --holcim-blue:#0097A9;
+  --holcim-green:#79C000;
+  --holcim-dark:#003B49;
+  --holcim-light-aqua:#C7E6E8;
+  --holcim-light-green:#C7E7A4;
+  --holcim-gray-dark:#1A1A1A;
+}
+body{background:#f4f7f7;font-family:Segoe UI,Roboto,Arial;color:var(--holcim-gray-dark);}
+.navbar{background:var(--holcim-dark)!important}
+.navbar-brand{font-weight:700;color:#fff!important}
+.nav-link{color:#fff!important}
+.nav-link:hover{color:var(--holcim-green)!important}
+.btn-primary{background:var(--holcim-blue)!important;border-color:var(--holcim-blue)!important;color:#fff!important}
+.btn-primary:hover{background:var(--holcim-dark)!important}
+.btn-success{background:var(--holcim-green)!important;border-color:var(--holcim-green)!important;color:#fff!important}
+.card{border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.table thead{background:var(--holcim-dark);color:#fff}
+.status-box{background:var(--holcim-light-aqua);border-left:6px solid var(--holcim-blue);padding:18px;border-radius:8px;text-align:center}
+.alert-holcim{background:var(--holcim-light-green);border-left:6px solid var(--holcim-green);padding:10px;border-radius:6px}
