@@ -12,11 +12,9 @@ from functools import wraps
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me')
 
-# Conexión a PostgreSQL en Render (o fallback a SQLite local para desarrollo)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-    'DATABASE_URL',
-    'sqlite:///visitas.db'
-)
+# Ruta a la base de datos existente en la raíz del proyecto
+db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'holcim.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -102,14 +100,12 @@ def index():
     activos = base.filter(Visitor.hora_salida.is_(None)).order_by(Visitor.hora_entrada.desc()).all()
     cantidad_activos = len(activos)
     ultimos = base.order_by(Visitor.hora_entrada.desc()).limit(15).all()
-
     alertas = []
     for v in activos:
         if v.hora_entrada:
             delta = (datetime.utcnow() - v.hora_entrada).total_seconds()/3600.0
             if delta >= 8:
                 alertas.append({'id':v.id,'nombre':v.nombre,'horas':int(delta),'site': v.site.name if v.site else ''})
-
     sites = Site.query.order_by(Site.name).all()
     return render_template('index.html', activos=activos, cantidad_activos=cantidad_activos, ultimos=ultimos, alertas=alertas, sites=sites)
 
@@ -214,7 +210,8 @@ def export():
 @login_required
 @role_required('superadmin')
 def admin_users():
-    users = User.query.order_by(User.email).all(); sites = Site.query.order_by(Site.name).all()
+    users = User.query.order_by(User.email).all()
+    sites = Site.query.order_by(Site.name).all()
     return render_template('admin_users.html', users=users, sites=sites)
 
 @app.route('/admin/users/create', methods=['GET','POST'])
@@ -251,8 +248,7 @@ def admin_users_create():
 # -------------------- CLI commands --------------------
 @app.cli.command('init-db')
 def init_db():
-    db.create_all()
-    print('DB created')
+    print('Usando base de datos existente, no se crea tabla automáticamente.')
 
 @app.cli.command('create-admin')
 def create_admin():
@@ -290,8 +286,6 @@ def create_default_sites():
 
 # -------------------- Run --------------------
 if __name__=='__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
 
 
