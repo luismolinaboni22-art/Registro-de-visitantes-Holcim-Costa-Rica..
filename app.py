@@ -8,23 +8,22 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 from functools import wraps
 
-# ---------- App Setup ----------
+# -------------------- App config --------------------
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me')
 
-# Detecta DATABASE_URL de Render; si no, usa SQLite local
-db_url = os.getenv('DATABASE_URL')
-if db_url and db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
-
-app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///visitas.db'
+# Conexión a PostgreSQL en Render (o fallback a SQLite local para desarrollo)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL',
+    'sqlite:///visitas.db'
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# ---------- Models ----------
+# -------------------- Models --------------------
 class Site(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False, unique=True)
@@ -32,11 +31,12 @@ class Site(db.Model):
     active = db.Column(db.Boolean, default=True)
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(200), unique=True, nullable=False)
     name = db.Column(db.String(200))
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(50), default='oficial')
+    role = db.Column(db.String(50), default='oficial')  # superadmin, admin, oficial
     active = db.Column(db.Boolean, default=True)
     site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=True)
     site = db.relationship('Site', backref='users')
@@ -55,7 +55,7 @@ class Visitor(db.Model):
     site = db.relationship('Site', backref='visitors')
     registrado_por = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
-# ---------- Login ----------
+# -------------------- Login --------------------
 @login_manager.user_loader
 def load_user(uid):
     return User.query.get(int(uid))
@@ -73,7 +73,7 @@ def role_required(role):
         return wrapped
     return decorator
 
-# ---------- Routes ----------
+# -------------------- Routes --------------------
 @app.route('/login', methods=['GET','POST'])
 def login():
     if current_user.is_authenticated:
@@ -98,11 +98,7 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    if current_user.role in ('superadmin','admin'):
-        base = Visitor.query
-    else:
-        base = Visitor.query.filter_by(site_id=current_user.site_id)
-
+    base = Visitor.query if current_user.role in ('superadmin','admin') else Visitor.query.filter_by(site_id=current_user.site_id)
     activos = base.filter(Visitor.hora_salida.is_(None)).order_by(Visitor.hora_entrada.desc()).all()
     cantidad_activos = len(activos)
     ultimos = base.order_by(Visitor.hora_entrada.desc()).limit(15).all()
@@ -178,37 +174,6 @@ def listar():
     sites = Site.query.order_by(Site.name).all()
     return render_template('listar.html', visitas=visitas, sites=sites, q=q, site_filter=site_filter)
 
-@app.route('/reports')
-@login_required
-def reports():
-    nombre = request.args.get('nombre','').strip()
-    empresa = request.args.get('empresa','').strip()
-    desde = request.args.get('desde','').strip()
-    hasta = request.args.get('hasta','').strip()
-    site_filter = request.args.get('site','').strip()
-    query = Visitor.query
-    if current_user.role == 'oficial':
-        query = query.filter_by(site_id=current_user.site_id)
-    if nombre:
-        query = query.filter(Visitor.nombre.ilike(f'%{nombre}%'))
-    if empresa:
-        query = query.filter(Visitor.empresa.ilike(f'%{empresa}%'))
-    if site_filter and current_user.role in ('superadmin','admin'):
-        try:
-            query = query.filter_by(site_id=int(site_filter))
-        except: pass
-    if desde:
-        try:
-            d = datetime.fromisoformat(desde); query = query.filter(Visitor.hora_entrada >= d)
-        except: flash('Formato desde inválido','warning')
-    if hasta:
-        try:
-            h = datetime.fromisoformat(hasta); query = query.filter(Visitor.hora_entrada <= h)
-        except: flash('Formato hasta inválido','warning')
-    results = query.order_by(Visitor.hora_entrada.desc()).all()
-    sites = Site.query.order_by(Site.name).all()
-    return render_template('reports.html', visitantes=results, sites=sites, nombre=nombre, empresa=empresa, desde=desde, hasta=hasta, site_filter=site_filter)
-
 @app.route('/export')
 @login_required
 def export():
@@ -227,11 +192,24 @@ def export():
         except: pass
     rows=[]
     for v in query.order_by(Visitor.hora_entrada).all():
-        rows.append({'ID':v.id,'Nombre':v.nombre,'Cedula':v.cedula,'Empresa':v.empresa,'Motivo':v.motivo,'Persona':v.persona_visitada,'Entrada':v.hora_entrada.isoformat() if v.hora_entrada else '','Salida':v.hora_salida.isoformat() if v.hora_salida else '','Sitio':v.site.name if v.site else ''})
-    df = pd.DataFrame(rows); bio=BytesIO(); df.to_excel(bio,index=False); bio.seek(0)
+        rows.append({
+            'ID':v.id,
+            'Nombre':v.nombre,
+            'Cedula':v.cedula,
+            'Empresa':v.empresa,
+            'Motivo':v.motivo,
+            'Persona':v.persona_visitada,
+            'Entrada':v.hora_entrada.isoformat() if v.hora_entrada else '',
+            'Salida':v.hora_salida.isoformat() if v.hora_salida else '',
+            'Sitio':v.site.name if v.site else ''
+        })
+    df = pd.DataFrame(rows)
+    bio = BytesIO()
+    df.to_excel(bio,index=False)
+    bio.seek(0)
     return send_file(bio, as_attachment=True, download_name='export_visitas.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
-# ---------- Admin Routes ----------
+# -------------------- Admin routes --------------------
 @app.route('/admin/users')
 @login_required
 @role_required('superadmin')
@@ -250,66 +228,70 @@ def admin_users_create():
         role=request.form.get('role','oficial')
         pwd=request.form.get('password','').strip()
         site_id=request.form.get('site_id') or None
-        if not email or not pwd or not name: flash('Email, nombre y pwd obligatorios','danger'); return redirect(url_for('admin_users_create'))
-        if User.query.filter_by(email=email).first(): flash('Usuario ya existe','danger'); return redirect(url_for('admin_users_create'))
-        u=User(email=email,name=name,role=role,password_hash=generate_password_hash(pwd),active=True,site_id=int(site_id) if site_id else None)
-        db.session.add(u); db.session.commit(); flash('Usuario creado','success'); return redirect(url_for('admin_users'))
+        if not email or not pwd or not name:
+            flash('Email, nombre y pwd obligatorios','danger')
+            return redirect(url_for('admin_users_create'))
+        if User.query.filter_by(email=email).first():
+            flash('Usuario ya existe','danger')
+            return redirect(url_for('admin_users_create'))
+        u = User(
+            email=email,
+            name=name,
+            role=role,
+            password_hash=generate_password_hash(pwd),
+            active=True,
+            site_id=int(site_id) if site_id else None
+        )
+        db.session.add(u)
+        db.session.commit()
+        flash('Usuario creado','success')
+        return redirect(url_for('admin_users'))
     return render_template('admin_user_form.html', sites=sites, action='create', user=None)
 
-@app.route('/admin/sites')
-@login_required
-@role_required('admin')
-def admin_sites():
-    sites = Site.query.order_by(Site.name).all(); users = User.query.order_by(User.name).all()
-    return render_template('admin_sites.html', sites=sites, users=users)
-
-@app.route('/admin/sites/create', methods=['GET','POST'])
-@login_required
-@role_required('admin')
-def admin_sites_create():
-    if request.method=='POST':
-        name=request.form.get('name','').strip(); location=request.form.get('location','').strip()
-        if not name: flash('Nombre obligatorio','danger'); return redirect(url_for('admin_sites_create'))
-        s=Site(name=name, location=location, active=True); db.session.add(s); db.session.commit(); flash('Sitio creado','success'); return redirect(url_for('admin_sites'))
-    return render_template('admin_site_form.html', action='create', site=None)
-
-# ---------- Inicialización DB ----------
+# -------------------- CLI commands --------------------
+@app.cli.command('init-db')
 def init_db():
+    db.create_all()
+    print('DB created')
+
+@app.cli.command('create-admin')
+def create_admin():
+    email='jorgemolinabonilla@gmail.com'
+    pwd='Jo70156938'
+    name='Super Admin'
+    if User.query.filter_by(email=email).first():
+        print('Superadmin exists')
+        return
+    u = User(email=email, name=name, password_hash=generate_password_hash(pwd), role='superadmin', active=True)
+    db.session.add(u)
+    db.session.commit()
+    print('Superadmin created')
+
+@app.cli.command('create-default-sites')
+def create_default_sites():
+    names = [
+        "Planta Cemento Cartago",
+        "Geocycle Administracion",
+        "Geocycle Plataforma",
+        "Mina La Chilena",
+        "Logistica Cartago",
+        "Holcim Modular Solutions Alajuela",
+        "Holcim Modular Solutions Guapiles",
+        "AMCO Heredia",
+        "AMCO Guanacaste"
+    ]
+    added=0
+    for n in names:
+        if not Site.query.filter_by(name=n).first():
+            db.session.add(Site(name=n, location='', active=True))
+            added+=1
+    db.session.commit()
+    print(f'Created {added} sites')
+
+# -------------------- Run --------------------
+if __name__=='__main__':
     with app.app_context():
         db.create_all()
-
-        # Superadmin
-        if 'user' in db.engine.table_names():
-            if not User.query.filter_by(email='jorgemolinabonilla@gmail.com').first():
-                u = User(
-                    email='jorgemolinabonilla@gmail.com',
-                    name='Super Admin',
-                    password_hash=generate_password_hash('Jo70156938'),
-                    role='superadmin',
-                    active=True
-                )
-                db.session.add(u)
-
-        # Sitios predeterminados
-        if 'site' in db.engine.table_names():
-            default_sites = [
-                "Planta Cemento Cartago",
-                "Geocycle Administracion",
-                "Geocycle Plataforma",
-                "Mina La Chilena",
-                "Logistica Cartago",
-                "Holcim Modular Solutions Alajuela",
-                "Holcim Modular Solutions Guapiles",
-                "AMCO Heredia",
-                "AMCO Guanacaste"
-            ]
-            for n in default_sites:
-                if not Site.query.filter_by(name=n).first():
-                    db.session.add(Site(name=n, location='', active=True))
-        db.session.commit()
-
-# ---------- Run App ----------
-if __name__ == '__main__':
-    init_db()
     app.run(debug=True)
+
 
